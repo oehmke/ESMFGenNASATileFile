@@ -45,12 +45,11 @@ include $(ESMFMKFILE)
 
 
 # -----------------------------------------------------------------------------
-GenNASATileFile: GenNASATileFile.o 
+GenNASATileFile: GenNASATileFile.o NASACatchFile.o
 	$(ESMF_F90LINKER) $(ESMF_F90LINKOPTS) $(ESMF_F90LINKPATHS) $(ESMF_F90LINKRPATHS) -o $@ $^ $(ESMF_F90ESMFLINKLIBS)
 
 # module dependencies:
-#app.o: driver.o
-#driver.o: mediator.o lnd.o atm.o
+GenNASATileFile.o: NASACatchFile.o
 
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------

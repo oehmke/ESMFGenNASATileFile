@@ -11,10 +11,11 @@
 program GenNASATileFile
   use ESMF
   !  use NUOPC
+  use NASACatchFile
   
   implicit none
   integer :: localrc
-
+  type(ESMF_Grid) :: catchGrid
   
   ! Initialize ESMF
   call ESMF_Initialize(logkindflag=ESMF_LOGKIND_MULTI, &
@@ -25,9 +26,13 @@ program GenNASATileFile
     call ESMF_Finalize(endflag=ESMF_END_ABORT)
   
 
-   ! Debug output
-   write(*,*) "Hi!"
-
+  ! Create Grid from file
+  catchGrid=createGridFromNASACatchFile("catch_rast_small.nc", rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+    line=__LINE__, &
+    file=__FILE__)) &
+    call ESMF_Finalize(endflag=ESMF_END_ABORT)
+   
   
   ! Finalize ESMF
   call ESMF_Finalize()
