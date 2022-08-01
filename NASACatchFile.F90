@@ -26,7 +26,12 @@ module NASACatchFile
   contains
   !-----------------------------------------------------------------------------
 
+    ! TODO: CONSIDER ADDING NCF_ TO THE FRONT OF ALL PUBLIC METHODS IN THIS MODULE,
+    !       AND THEN SHORTEN THEIR NAMES TO GET RID OF NASACatchFile
 
+    ! TODO: MAKE ALL NON-PUBLIC METHODS PRIVATE!
+
+    
     ! Creates a Grid to represent the index space and coordinates of
     ! a NASA catchment file
     function createGridFromNASACatchFile(fileName, rc)
@@ -105,9 +110,15 @@ module NASACatchFile
       if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
            NCF_CONTEXT, rcToReturn=rc)) return
 
-      ! Fill coordinates from file
+      ! Fill longitude center coordinates from file
       call readCenterCoordsFromNASACatchFile(createGridFromNASACatchFile, &
-           filename, localrc)
+           filename, coordDim=1, varname="longitude", rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+
+      ! Fill latitude center coordinates from file
+      call readCenterCoordsFromNASACatchFile(createGridFromNASACatchFile, &
+           filename, coordDim=2, varname="latitude", rc=localrc)
       if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
            NCF_CONTEXT, rcToReturn=rc)) return      
       
@@ -131,35 +142,193 @@ module NASACatchFile
 
 
     ! Read center coordinates and put into Grid 
-    subroutine readCenterCoordsFromNASACatchFile(grid, filename, rc)
+    ! This only supports reading 1D coordinates
+    ! (The coordinates in NASA files are 1D)
+    subroutine readCenterCoordsFromNASACatchFile(grid, filename, &
+         coordDim, varname, rc)
+      
       ! Arguments
       type(ESMF_Grid) :: grid
       character(len=*), intent(in)  :: filename
+      integer :: coordDim
+      character(len=*), intent(in)  :: varname
       integer, intent(out),optional :: rc      
 
       ! Local variables
       integer :: localrc 
-      type(ESMF_Array) :: lonCoordArray
-
-
+      type(ESMF_Array) :: coordArray, tmpCoordArray
+      type(ESMF_Distgrid) :: gridArrayDistGrid
+      type(ESMF_Distgrid) :: factorDistGrid
+      integer :: localDECount,rank
+      type(ESMF_LocalArray), allocatable :: localArrayList(:)
+      real(ESMF_KIND_R8), pointer :: farrayPtr(:)
+ 
+     
       ! Get lon. coordinate Array from Grid
-      call ESMF_GridGetCoord(grid, coordDim=1, &
+      call ESMF_GridGetCoord(grid, coordDim=coordDim, &
            staggerloc=ESMF_STAGGERLOC_CENTER, &
-           array=lonCoordArray, rc=localrc)
+           array=coordArray, rc=localrc)
       if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
            NCF_CONTEXT, rcToReturn=rc)) return      
+
+
+      ! Get DistGrid and localDECount from Array
+      call ESMF_ArrayGet(coordArray,  &
+           rank=rank, &
+           localDECount=localDECount, &
+           distgrid=gridArrayDistGrid, rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+
       
-      ! Read lon. coordinates into Array
-      call ESMF_ArrayRead(lonCoordArray, &
-           fileName=filename, variableName="longitude", &
+      ! Only support 1D coordinates right now
+      if (rank .ne. 1) then
+         call ESMF_LogSetError(ESMF_RC_OBJ_BAD, &
+              msg="Only Grids with 1D coordinate arrays are currently supported.", &
+              NCF_CONTEXT, rcToReturn=rc)
+         return
+      endif
+
+      ! Allocate space for localArrayList
+      allocate(localArrayList(localDECount))
+
+      ! Get localArrayList
+      call ESMF_ArrayGet(coordArray,  &
+           localArrayList=localArrayList, &
            rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+
+    
+      ! Get index Info from DistGrid
+      call createFactorDistGrid(gridArrayDistgrid, coordDim, factorDistgrid, rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+
+      ! Create factored Array
+      tmpCoordArray=ESMF_ArrayCreate(factorDistgrid, &
+           localArrayList=localArrayList, &
+           dataCopyFlag=ESMF_DATACOPY_REFERENCE, &
+           rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+      
+      ! Read lon. coordinates into temporary Array
+      call ESMF_ArrayRead(tmpCoordArray, &
+           fileName=filename, variableName=varname, &
+           rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return      
+
+
+      ! DEBUG OUTPUT
+      !! call ESMF_ArrayGet(coordArray, localDE=0, farrayPtr=farrayPtr, rc=localrc) 
+      !! if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+      !!     NCF_CONTEXT, rcToReturn=rc)) return
+      !! 
+      !! write(*,*) trim(varname)," = ",farrayPtr
+      
+      ! Get rid of Array
+      call ESMF_ArrayDestroy(tmpCoordArray, rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+
+      ! Get rid of Distgrid
+      call ESMF_DistGridDestroy(factorDistgrid, rc=localrc)
       if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
            NCF_CONTEXT, rcToReturn=rc)) return      
       
       ! Return successfully
       if (present(rc)) rc = ESMF_SUCCESS
     end subroutine readCenterCoordsFromNASACatchFile
-  
+
+   
+    
+    ! Create a distgrid that's just 1D along the factor dim
+    subroutine createFactorDistGrid(distgrid, factorDim, factorDistgrid, rc)
+      ! Arguments
+      type(ESMF_DistGrid) :: distgrid
+      integer :: factorDim
+      type(ESMF_DistGrid) :: factorDistgrid
+      integer, intent(out),optional :: rc      
+
+      ! Local variables
+      type(ESMF_Index_Flag) :: indexflag
+      type(ESMF_DELayout) :: DELayout
+      integer :: localrc 
+      integer :: minIndexPTile(2,1), maxIndexPTile(2,1)
+      integer :: tileCount,dimCount,deCount
+      integer, allocatable :: deBlockList(:,:,:)
+      integer, allocatable :: minIndexPDE(:,:)
+      integer, allocatable :: maxIndexPDE(:,:)
+      integer :: d
+      
+      ! Get Info from Distgrid
+      call ESMF_DistGridGet(distgrid, &
+           tileCount=tileCount, &
+           dimCount=dimCount, &
+           deCount=deCount, &
+           indexFlag=indexflag, &
+           delayout=delayout, &
+           rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return      
+      
+      ! Only support 2D 1 tile grids right now
+      if (tileCount .ne. 1) then
+         call ESMF_LogSetError(ESMF_RC_OBJ_BAD, &
+              msg="Only 1 tile Grids currently supported.", &
+              NCF_CONTEXT, rcToReturn=rc)
+         return
+      endif
+
+      if (dimCount .ne. 2) then
+         call ESMF_LogSetError(ESMF_RC_OBJ_BAD, &
+              msg="Only 2D Grids currently supported.", &
+              NCF_CONTEXT, rcToReturn=rc)
+         return
+      endif
+
+      ! Allocate min and max de lists
+      allocate(minIndexPDe(2,deCount))
+      allocate(maxIndexPDe(2,deCount))
+      
+      
+      ! Get Info from Distgrid
+      call ESMF_DistGridGet(distgrid, &
+           minIndexPTile=minIndexPTile, &
+           maxIndexPTile=maxIndexPTile, &
+           minIndexPDe=minIndexPDE, &
+           maxIndexPDe=maxIndexPDE, &
+           rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return      
+
+      ! Create deBlockList from min and max DE lists
+      allocate(deBlockList(1,2,deCount))
+      do d=1,deCount
+         deBlockList(1,1,d)=minIndexPDE(factorDim,d)
+         deBlockList(1,2,d)=maxIndexPDE(factorDim,d)
+      enddo
+      
+      ! Create new distgrid
+      factorDistgrid=ESMF_DistGridCreate(minIndex=minIndexPTile(factorDim:factorDim,1), &
+           maxIndex=maxIndexPTile(factorDim:factorDim,1), &
+           deBlockList=deBlockList, &
+           delayout=delayout, &
+           indexFlag=indexflag, &
+           rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return      
+
+      
+      ! Return successfully
+      if (present(rc)) rc = ESMF_SUCCESS
+    end subroutine createFactorDistGrid
+
+
+    
+    
 !
 !  check NetCDF file error code
 !
