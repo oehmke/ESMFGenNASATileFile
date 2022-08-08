@@ -65,7 +65,9 @@ module NASACatchFile
 
       ! Create Mesh from raster info
       NCF_CreateCatchmentMesh=ESMF_MeshCreate(&
-           rasterGrid=grid, rasterArray=array, rc=localrc)
+           rasterGrid=grid, rasterArray=array, &
+           rasterMaskValues=(/0/), & ! Mask out ocean 
+           rc=localrc)
       if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
            NCF_CONTEXT, rcToReturn=rc)) return
       

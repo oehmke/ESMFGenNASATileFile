@@ -41,6 +41,13 @@ program GenNASATileFile
     line=__LINE__, &
     file=__FILE__)) &
     call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  ! Debug output of catchment mesh
+  call ESMF_MeshWrite(catchMesh,"catchMesh", rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+    line=__LINE__, &
+    file=__FILE__)) &
+    call ESMF_Finalize(endflag=ESMF_END_ABORT)
   
   
   ! Finalize ESMF
