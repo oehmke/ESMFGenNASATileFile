@@ -15,7 +15,7 @@ program GenNASATileFile
   
   implicit none
   integer :: localrc
-  type(ESMF_Grid) :: catchGrid
+  type(ESMF_Field) :: catchField
   
   ! Initialize ESMF
   call ESMF_Initialize(logkindflag=ESMF_LOGKIND_MULTI, &
@@ -26,8 +26,8 @@ program GenNASATileFile
     call ESMF_Finalize(endflag=ESMF_END_ABORT)
   
 
-  ! Create Grid from file
-  catchGrid=createGridFromNASACatchFile("catch_rast_small.nc", rc=localrc)
+  ! Create Field from file
+  catchField=NCF_CreateField("catch_rast_small.nc", rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
     line=__LINE__, &
     file=__FILE__)) &
