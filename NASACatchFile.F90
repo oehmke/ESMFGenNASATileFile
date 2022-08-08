@@ -22,6 +22,7 @@ module NASACatchFile
 #define NCF_PASSTHRU msg="Internal subroutine call returned Error"
 
   ! Public interfaces available from this module
+  public NCF_CreateCatchmentMesh
   public NCF_CreateField
   public NCF_CreateGrid
 
@@ -32,11 +33,52 @@ module NASACatchFile
   contains
   !-----------------------------------------------------------------------------
 
-    ! TODO: CONSIDER ADDING NCF_ TO THE FRONT OF ALL PUBLIC METHODS IN THIS MODULE,
-    !       AND THEN SHORTEN THEIR NAMES TO GET RID OF NASACatchFile
+    ! Create an ESMF Mesh to represent the catchments in a file
+    function NCF_CreateCatchmentMesh(fileName, rc)
+#undef  NCF_METHOD
+#define NCF_METHOD "NCF_CreateCatchmentMesh()"
 
-    ! TODO: MAKE ALL NON-PUBLIC METHODS PRIVATE!
+      ! Return value
+      type(ESMF_Mesh) :: NCF_CreateCatchmentMesh
+      !
+      ! !ARGUMENTS:
+      character (len=*),         intent(in),  optional :: fileName
+      integer,                   intent(out), optional :: rc
 
+      ! Local variables
+      integer :: localrc
+      type(ESMF_Grid) :: grid
+      type(ESMF_Field) :: field
+      type(ESMF_Array) :: array
+
+      ! Create Field from file
+      field=NCF_CreateField(fileName, rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+
+
+      ! Get Grid and Array
+      call ESMF_FieldGet(field, &
+           grid=grid, array=array, rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+
+      ! Create Mesh from raster info
+      NCF_CreateCatchmentMesh=ESMF_MeshCreate(&
+           rasterGrid=grid, rasterArray=array, rc=localrc)
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+      
+      
+      ! Get rid of Field
+      call ESMF_FieldDestroy(field, rc=localrc) 
+      if (ESMF_LogFoundError(localrc, NCF_PASSTHRU, &
+           NCF_CONTEXT, rcToReturn=rc)) return
+      
+      ! Return successfully
+      if (present(rc)) rc = ESMF_SUCCESS
+    end function NCF_CreateCatchmentMesh
+    
 
     ! Creates an ESMF Field to hold the raster data,
     ! index space, and coordinates of a NASA catchment file
