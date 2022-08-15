@@ -15,9 +15,14 @@ program GenNASATileFile
   
   implicit none
   integer :: localrc
-  type(ESMF_Field) :: catchField
-  type(ESMF_Mesh) :: catchMesh
+  type(ESMF_Field) :: lndField
+  type(ESMF_Mesh) :: lndMesh
+  type(ESMF_Grid) :: atmGrid
+  type(ESMF_Grid) :: ocnGrid
+  type(ESMF_XGrid) :: xgrid
+  type(ESMF_Mesh) :: xgridMesh
 
+  
   ! Initialize ESMF
   call ESMF_Initialize(logkindflag=ESMF_LOGKIND_MULTI, &
     defaultCalkind=ESMF_CALKIND_GREGORIAN, rc=localrc)
@@ -28,26 +33,114 @@ program GenNASATileFile
   
 #if 0
   ! Create Field from file
-  catchField=NCF_CreateField("catch_rast_small.nc", rc=localrc)
+  lndField=NCF_CreateField("catch_rast_small.nc", rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
     line=__LINE__, &
     file=__FILE__)) &
     call ESMF_Finalize(endflag=ESMF_END_ABORT)
 #endif
 
-  ! Create catchment mesh from file
-  catchMesh=NCF_CreateCatchmentMesh("catch_rast_small.nc", rc=localrc)
-  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-    line=__LINE__, &
-    file=__FILE__)) &
-    call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-  ! Debug output of catchment mesh
-  call ESMF_MeshWrite(catchMesh,"catchMesh", rc=localrc)
+  ! Create C12 Atm Grid
+  atmGrid= ESMF_GridCreateCubedSphere(tilesize=12, name="ATM-Grid", &
+       staggerLocList=[ESMF_STAGGERLOC_CENTER,ESMF_STAGGERLOC_CORNER], &
+       coordSys=ESMF_COORDSYS_SPH_DEG, rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-    line=__LINE__, &
-    file=__FILE__)) &
-    call ESMF_Finalize(endflag=ESMF_END_ABORT)
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  
+  ! Create lnd catchment mesh from file
+  lndMesh=NCF_CreateCatchmentMesh("catch_rast_small.nc", rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+#if 0  
+  ! Debug output of catchment mesh
+  call ESMF_MeshWrite(lndMesh,"lndMesh", rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+#endif  
+
+  ! Create ocean grid
+  ocnGrid = ESMF_GridCreate1PeriDimUfrm(maxIndex=(/72,36/), &
+       minCornerCoord=(/-180._ESMF_KIND_R8, -90._ESMF_KIND_R8/), &
+       maxCornerCoord=(/180._ESMF_KIND_R8, 90._ESMF_KIND_R8/), &
+       staggerLocList=(/ESMF_STAGGERLOC_CENTER, ESMF_STAGGERLOC_CORNER/), name="LND-Grid", &
+       rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  ! Create XGrid  
+  xgrid=ESMF_XGridCreate(&
+       sideAGrid=(/atmGrid/), &
+       sideBGrid=(/ocnGrid/), &
+       sideBGridPriority=(/1/), &
+       sideBMesh=(/lndMesh/), &
+       sideBMeshPriority=(/2/), &
+       storeOverlay=.true., &
+       rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  ! Get Mesh (for debugging purposes)
+  call ESMF_XGridGet(xgrid, mesh=xgridMesh, rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  ! Debug output of xgrid mesh
+  call ESMF_MeshWrite(xgridMesh,"xgridMesh", rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+
+
+
+  
+  ! Get rid of XGrid
+  call ESMF_XGridDestroy(xgrid, rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  ! Get rid of lnd Mesh
+  call ESMF_MeshDestroy(lndMesh, rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+  
+  ! Get rid of ocn Grid
+  call ESMF_GridDestroy(ocnGrid, rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  ! Get rid of atm Grid
+  call ESMF_GridDestroy(atmGrid, rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+  
+
+  
   
   
   ! Finalize ESMF
