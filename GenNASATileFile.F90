@@ -10,8 +10,8 @@
 
 program GenNASATileFile
   use ESMF
-  !  use NUOPC
   use NASACatchFile
+  use NASATileFile
   
   implicit none
   integer :: localrc
@@ -31,15 +31,6 @@ program GenNASATileFile
     file=__FILE__)) &
     call ESMF_Finalize(endflag=ESMF_END_ABORT)
   
-#if 0
-  ! Create Field from file
-  lndField=NCF_CreateField("catch_rast_small.nc", rc=localrc)
-  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-    line=__LINE__, &
-    file=__FILE__)) &
-    call ESMF_Finalize(endflag=ESMF_END_ABORT)
-#endif
-
 
   ! Create C12 Atm Grid
   atmGrid= ESMF_GridCreateCubedSphere(tilesize=12, name="ATM-Grid", &
@@ -50,7 +41,7 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-  
+#ifdef BIG_TEST
   ! Create lnd catchment mesh from file
   lndMesh=NCF_CreateCatchmentMesh("catch_rast_small.nc", rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -58,7 +49,6 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-#if 0  
   ! Debug output of catchment mesh
   call ESMF_MeshWrite(lndMesh,"lndMesh", rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -67,6 +57,8 @@ program GenNASATileFile
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 #endif  
 
+
+  
   ! Create ocean grid
   ocnGrid = ESMF_GridCreate1PeriDimUfrm(maxIndex=(/72,36/), &
        minCornerCoord=(/-180._ESMF_KIND_R8, -90._ESMF_KIND_R8/), &
@@ -82,9 +74,11 @@ program GenNASATileFile
   xgrid=ESMF_XGridCreate(&
        sideAGrid=(/atmGrid/), &
        sideBGrid=(/ocnGrid/), &
-       sideBGridPriority=(/1/), &
+#ifdef BIG_TEST
+       sideBGridPriority=(/2/), &
        sideBMesh=(/lndMesh/), &
-       sideBMeshPriority=(/2/), &
+       sideBMeshPriority=(/1/), &
+#endif       
        storeOverlay=.true., &
        rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -106,8 +100,13 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-
-
+  
+  ! Output tile file
+  call NTF_Write(xgrid, fileName="NTF.til", rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
   
   ! Get rid of XGrid
@@ -117,12 +116,15 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
+#ifdef BIG_TEST
   ! Get rid of lnd Mesh
   call ESMF_MeshDestroy(lndMesh, rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
        line=__LINE__, &
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
+#endif
+
   
   ! Get rid of ocn Grid
   call ESMF_GridDestroy(ocnGrid, rc=localrc)
@@ -137,11 +139,6 @@ program GenNASATileFile
        line=__LINE__, &
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
-
-  
-
-  
-  
   
   ! Finalize ESMF
   call ESMF_Finalize()
