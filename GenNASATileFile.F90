@@ -19,6 +19,7 @@ program GenNASATileFile
   type(ESMF_Mesh) :: lndMesh
   type(ESMF_Grid) :: atmGrid
   type(ESMF_Grid) :: ocnGrid
+  type(ESMF_Grid) :: lndGrid
   type(ESMF_XGrid) :: xgrid
   type(ESMF_Mesh) :: xgridMesh
 
@@ -41,7 +42,8 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-#ifdef BIG_TEST
+#define SMALL_TEST  
+#ifndef SMALL_TEST
   ! Create lnd catchment mesh from file
   lndMesh=NCF_CreateCatchmentMesh("catch_rast_small.nc", rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -49,16 +51,42 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-  ! Debug output of catchment mesh
-  call ESMF_MeshWrite(lndMesh,"lndMesh", rc=localrc)
+#else
+  ! Make a non-periodic grid that just covers part of Earth to simulate land
+  lndGrid = ESMF_GridCreateNoPeriDimUfrm(maxIndex=(/100,50/), &
+       minCornerCoord=(/-180.0_ESMF_KIND_R8, -80._ESMF_KIND_R8/), &
+       maxCornerCoord=(/80._ESMF_KIND_R8, 80._ESMF_KIND_R8/), &
+       staggerLocList=(/ESMF_STAGGERLOC_CENTER, ESMF_STAGGERLOC_CORNER/), name="LND-Grid", rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       return  ! bail out
+
+  ! Create Mesh from Grid
+  lndMesh=ESMF_MeshCreate(lndGrid, rc=localrc)
+  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+       line=__LINE__, &
+       file=__FILE__)) &
+       return  ! bail out    
+
+  ! Get rid of temporary land Grid
+  call ESMF_GridDestroy(lndGrid, rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
        line=__LINE__, &
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
+  
 #endif  
 
-
   
+  ! Debug output of lnd mesh
+  ! call ESMF_MeshWrite(lndMesh,"lndMesh", rc=localrc)
+  ! if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+  !     line=__LINE__, &
+  !     file=__FILE__)) &
+  !     call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
+
   ! Create ocean grid
   ocnGrid = ESMF_GridCreate1PeriDimUfrm(maxIndex=(/72,36/), &
        minCornerCoord=(/-180._ESMF_KIND_R8, -90._ESMF_KIND_R8/), &
@@ -74,17 +102,16 @@ program GenNASATileFile
   xgrid=ESMF_XGridCreate(&
        sideAGrid=(/atmGrid/), &
        sideBGrid=(/ocnGrid/), &
-#ifdef BIG_TEST
        sideBGridPriority=(/2/), &
        sideBMesh=(/lndMesh/), &
        sideBMeshPriority=(/1/), &
-#endif       
        storeOverlay=.true., &
        rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
        line=__LINE__, &
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
 
   ! Get Mesh (for debugging purposes)
   call ESMF_XGridGet(xgrid, mesh=xgridMesh, rc=localrc)
@@ -93,12 +120,13 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
+  
   ! Debug output of xgrid mesh
-  call ESMF_MeshWrite(xgridMesh,"xgridMesh", rc=localrc)
-  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-       line=__LINE__, &
-       file=__FILE__)) &
-       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+  !call ESMF_MeshWrite(xgridMesh,"xgridMesh", rc=localrc)
+  !if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+  !     line=__LINE__, &
+  !     file=__FILE__)) &
+  !     call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
   
   ! Output tile file
@@ -116,14 +144,13 @@ program GenNASATileFile
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
-#ifdef BIG_TEST
+
   ! Get rid of lnd Mesh
   call ESMF_MeshDestroy(lndMesh, rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
        line=__LINE__, &
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
-#endif
 
   
   ! Get rid of ocn Grid
