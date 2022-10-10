@@ -33,7 +33,7 @@ program GenNASATileFile
     call ESMF_Finalize(endflag=ESMF_END_ABORT)
   
 
-  ! Create C12 Atm Grid
+  ! Create C12 test Atm Grid
   atmGrid= ESMF_GridCreateCubedSphere(tilesize=12, name="ATM-Grid", &
        staggerLocList=[ESMF_STAGGERLOC_CENTER,ESMF_STAGGERLOC_CORNER], &
        coordSys=ESMF_COORDSYS_SPH_DEG, rc=localrc)
@@ -52,22 +52,26 @@ program GenNASATileFile
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
 #else
+
+  write(*,*) "Running small test"
+
   ! Make a non-periodic grid that just covers part of Earth to simulate land
-  lndGrid = ESMF_GridCreateNoPeriDimUfrm(maxIndex=(/100,50/), &
+  lndGrid = ESMF_GridCreateNoPeriDimUfrm(maxIndex=(/50,25/), &
        minCornerCoord=(/-180.0_ESMF_KIND_R8, -80._ESMF_KIND_R8/), &
        maxCornerCoord=(/80._ESMF_KIND_R8, 80._ESMF_KIND_R8/), &
        staggerLocList=(/ESMF_STAGGERLOC_CENTER, ESMF_STAGGERLOC_CORNER/), name="LND-Grid", rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
        line=__LINE__, &
        file=__FILE__)) &
-       return  ! bail out
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
   ! Create Mesh from Grid
   lndMesh=ESMF_MeshCreate(lndGrid, rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
        line=__LINE__, &
        file=__FILE__)) &
-       return  ! bail out    
+       call ESMF_Finalize(endflag=ESMF_END_ABORT)
+
 
   ! Get rid of temporary land Grid
   call ESMF_GridDestroy(lndGrid, rc=localrc)
@@ -75,7 +79,6 @@ program GenNASATileFile
        line=__LINE__, &
        file=__FILE__)) &
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
-  
 #endif  
 
   
@@ -87,11 +90,11 @@ program GenNASATileFile
   !     call ESMF_Finalize(endflag=ESMF_END_ABORT)
 
 
-  ! Create ocean grid
+  ! Create test 5 deg. ocean grid
   ocnGrid = ESMF_GridCreate1PeriDimUfrm(maxIndex=(/72,36/), &
        minCornerCoord=(/-180._ESMF_KIND_R8, -90._ESMF_KIND_R8/), &
        maxCornerCoord=(/180._ESMF_KIND_R8, 90._ESMF_KIND_R8/), &
-       staggerLocList=(/ESMF_STAGGERLOC_CENTER, ESMF_STAGGERLOC_CORNER/), name="LND-Grid", &
+       staggerLocList=(/ESMF_STAGGERLOC_CENTER, ESMF_STAGGERLOC_CORNER/), name="Ocn-Grid", &
        rc=localrc)
   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
        line=__LINE__, &

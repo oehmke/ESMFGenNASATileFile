@@ -18,11 +18,11 @@
 ## flexible and non-portable.                                                 ##
 ################################################################################
 
-ifneq ($(origin ESMFMKFILE), environment)
-$(error Environment variable ESMFMKFILE was not set.)
-endif
+#ifneq ($(origin ESMFMKFILE), environment)
+#$(error Environment variable ESMFMKFILE was not set.)
+#endif
 
-#ESMFMKFILE := /Users/oehmke/ESMF/xgrid_improve_w_calc/lib/libg/Darwin.gfortran.64.openmpi.default/esmf.mk
+ESMFMKFILE := /glade/work/oehmke/ESMF/mesh_from_raster/lib/libg/Linux.intel.64.mpt.default/esmf.mk
 
 include $(ESMFMKFILE)
 
